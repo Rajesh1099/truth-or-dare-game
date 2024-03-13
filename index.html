@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(
+          to right bottom,
+          #050505,
+          #10101a,
+          #1b1b33,
+          #26264d,
+          #313166
+        );
+        color: #fff;
+      }
+
+      .header {
+        padding: 20px; /* Reduce padding */
+        color: #fff;
+        text-align: center; /* Center align text */
+      }
+      .header h1,
+      p {
+        margin: 0; /* Remove default margin */
+        color: #050505;
+      }
+
+      #winner {
+        color: rgb(11, 193, 11);
+      }
+
+      #winnertitle {
+        color: white;
+      }
+
+      .warning-popup {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: rgba(255, 0, 0, 0.7);
+        padding: 10px 20px;
+        border-radius: 5px;
+        color: #fff;
+        z-index: 9999;
+      }
+
+      .wheel {
+        display: flex;
+        justify-content: center;
+        position: relative;
+      }
+
+      .canvas {
+        transition: filter 0.5s ease;
+      }
+
+      .center-circle {
+        width: 100px;
+        height: 100px;
+        border-radius: 60px;
+        background-color: #fff;
+        position: absolute;
+        top: 50%;
+        left: 50%; /* Center horizontally */
+        transform: translate(
+          -50%,
+          -50%
+        ); /* Center vertically and horizontally */
+      }
+      .triangle {
+        width: 0;
+        height: 0;
+        border-top: 10px solid transparent;
+        border-bottom: 10px solid transparent;
+        border-right: 30px solid white;
+        position: absolute;
+        top: 50%;
+        right: -170%;
+        transform: translateY(-50%);
+      }
+      textarea {
+        background-color: rgba(20, 20, 20, 0.2);
+        caret-color: #fff;
+        resize: none;
+        color: #fff;
+      }
+
+      .inputArea {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 20px;
+      }
+
+      .inputArea input[type="number"] {
+        padding: 10px;
+        border: 2px solid #fff;
+        border-radius: 5px;
+        background-color: transparent;
+        color: #e05151;
+        font-size: 16px;
+        width: 215px;
+      }
+
+      .inputArea input[type="number"]::placeholder {
+        color: #fff;
+      }
+
+      .inputArea button {
+        padding: 10px 20px;
+        background-color: #b17676;
+        color: #fff;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+        margin-left: 10px; /* Add margin to separate from input */
+      }
+
+      .inputArea button:hover {
+        background-color: #555;
+      }
+
+      .close-popup {
+        position: absolute;
+        top: 0px;
+        right: 2px;
+        font-size: 24px;
+        cursor: pointer;
+        color: #ea1111;
+      }
+      .popup-container {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: #fff;
+        padding: 20px;
+        border-radius: 5px;
+        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.3);
+        z-index: 10000;
+        display: none;
+        text-align: center; /* Center align text */
+      }
+
+      .popup-container.show {
+        display: block;
+      }
+      .popup-buttons {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 20px;
+      }
+      .popup-button {
+        padding: 10px 20px;
+        background-color: #333;
+        color: #fff;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+      .popup-button:hover {
+        background-color: #555;
+      }
+
+      /* Media queries for responsive design */
+      @media screen and (max-width: 768px) {
+        .inputArea input[type="number"],
+        .inputArea button {
+          width: calc(100% - 20px);
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="header">
+      <h1 id="winnertitle">WINNER</h1>
+      <p id="winner">NONE</p>
+    </div>
+    <div class="wheel">
+      <canvas class="" id="canvas" width="400" height="400"></canvas>
+      <div class="center-circle" onclick="spin()">
+        <div class="triangle"></div>
+      </div>
+    </div>
+    <div class="inputArea">
+      <input
+        type="number"
+        id="participantCount"
+        min="2"
+        max="50"
+        placeholder="Enter number of participants"
+        required
+      />
+      <button onclick="createWheel()" type="button">Start Game</button>
+    </div>
+
+    <div class="popup-container" id="popupContainer">
+      <span class="close-popup" onclick="hidePopup()">×</span>
+      <!-- Add close button -->
+      <p>Choose Truth or Dare:</p>
+      <div class="popup-buttons">
+        <button class="popup-button" onclick="hidePopup()">Truth</button>
+        <button class="popup-button" onclick="hidePopup()">Dare</button>
+      </div>
+    </div>
+
+    <script>
+      function randomColor() {
+        r = Math.floor(Math.random() * 255);
+        g = Math.floor(Math.random() * 255);
+        b = Math.floor(Math.random() * 255);
+        return { r, g, b };
+      }
+      function toRad(deg) {
+        return deg * (Math.PI / 180.0);
+      }
+      function randomRange(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+      }
+      function easeOutSine(x) {
+        return Math.sin((x * Math.PI) / 2);
+      }
+      // get percent between 2 number
+      function getPercent(input, min, max) {
+        return ((input - min) * 100) / (max - min) / 100;
+      }
+
+      // Get the popup container and buttons
+      const popupContainer = document.getElementById("popupContainer");
+
+      function hidePopup() {
+        popupContainer.style.display = "none";
+      }
+
+      // Add event listener to the close button
+      document
+        .querySelector(".close-popup")
+        .addEventListener("click", function () {
+          hidePopup(); // Call hidePopup function when close button is clicked
+        });
+
+      function showPopup() {
+        popupContainer.classList.add("show");
+      }
+
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const width = document.getElementById("canvas").width;
+      const height = document.getElementById("canvas").height;
+
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const radius = width / 2;
+
+      let currentDeg = 0;
+      let step = 0;
+      let colors = [];
+      let itemDegs = {};
+
+      let countdownStarted = false; // Track if countdown has started
+
+      function createWheel() {
+        const participantCount = parseInt(
+          document.getElementById("participantCount").value
+        );
+        if (
+          !participantCount ||
+          participantCount < 2 ||
+          participantCount > 50
+        ) {
+          const warningPopup = document.createElement("div");
+          warningPopup.textContent =
+            "Please enter any value between 2 to 50 in the field";
+          warningPopup.classList.add("warning-popup");
+          document.body.appendChild(warningPopup);
+
+          setTimeout(() => {
+            document.body.removeChild(warningPopup);
+          }, 3000);
+
+          return;
+        }
+
+        startGame(participantCount);
+      }
+
+      function startGame(participantCount) {
+        step = 360 / participantCount;
+        colors = [];
+        for (let i = 0; i < participantCount + 1; i++) {
+          colors.push(randomColor());
+        }
+        draw();
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, toRad(0), toRad(360));
+        ctx.fillStyle = `rgb(${33},${33},${33})`;
+        ctx.lineTo(centerX, centerY);
+        ctx.fill();
+
+        let startDeg = currentDeg;
+        for (let i = 0; i < colors.length - 1; i++, startDeg += step) {
+          let endDeg = startDeg + step;
+
+          color = colors[i];
+          let colorStyle = `rgb(${color.r},${color.g},${color.b})`;
+
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, radius - 2, toRad(startDeg), toRad(endDeg));
+          let colorStyle2 = `rgb(${color.r - 30},${color.g - 30},${
+            color.b - 30
+          })`;
+          ctx.fillStyle = colorStyle2;
+          ctx.lineTo(centerX, centerY);
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(
+            centerX,
+            centerY,
+            radius - 30,
+            toRad(startDeg),
+            toRad(endDeg)
+          );
+          ctx.fillStyle = colorStyle;
+          ctx.lineTo(centerX, centerY);
+          ctx.fill();
+
+          // draw text
+          ctx.save();
+          ctx.translate(centerX, centerY);
+          ctx.rotate(toRad((startDeg + endDeg) / 2));
+          ctx.textAlign = "center";
+          if (color.r > 150 || color.g > 150 || color.b > 150) {
+            ctx.fillStyle = "#000";
+          } else {
+            ctx.fillStyle = "#fff";
+          }
+          ctx.font = "bold 24px serif";
+          ctx.fillText("Player " + (i + 1), 130, 10);
+          ctx.restore();
+
+          itemDegs["Player " + (i + 1)] = {
+            startDeg: startDeg,
+            endDeg: endDeg,
+          };
+
+          // check winner
+          if (
+            startDeg % 360 < 360 &&
+            startDeg % 360 > 270 &&
+            endDeg % 360 > 0 &&
+            endDeg % 360 < 90
+          ) {
+            document.getElementById("winner").innerHTML = "Player " + (i + 1);
+            showPopup(); // Show popup when the winner is determined
+          }
+        }
+      }
+
+      let speed = 0;
+      let maxRotation = randomRange(360 * 3, 360 * 6);
+      let pause = false;
+      let spinning = false; // Track if spinning animation is in progress
+
+      function animate() {
+        if (pause) {
+          if (spinning) {
+            // Show the popup container after spinning is completed
+            showPopup();
+            spinning = false; // Reset spinning flag
+          }
+          return;
+        }
+        speed = easeOutSine(getPercent(currentDeg, maxRotation, 0)) * 20;
+        if (speed < 0.01) {
+          speed = 0;
+          pause = true;
+          spinning = true; // Set spinning flag to true when animation completes
+        }
+        currentDeg += speed;
+        draw();
+        window.requestAnimationFrame(animate);
+      }
+
+      function spin() {
+        if (speed != 0 || spinning) {
+          return;
+        }
+
+        // Hide the popup container during spinning
+        popupContainer.style.display = "none";
+
+        // Resetting maxRotation to a random value between 3 to 6 full spins
+        maxRotation = randomRange(360 * 3, 360 * 6);
+        currentDeg = 0;
+        draw();
+
+        // Choosing a random item to stop at
+        const stopItemIndex = randomRange(0, colors.length - 2);
+        const stopItem = "Player " + (stopItemIndex + 1);
+
+        // Calculating maxRotation to stop at the selected item
+        maxRotation = 360 * 6 - itemDegs[stopItem].endDeg + 10;
+        itemDegs = {};
+
+        pause = false;
+        window.requestAnimationFrame(animate);
+
+        // Gray out all canvases except the one where the triangle stops
+        const canvasElements = document.querySelectorAll("canvas");
+        for (let canvasElement of canvasElements) {
+          canvasElement.style.filter = "grayscale(1)";
+        }
+        canvas.style.filter = "none"; // Keep the canvas where the triangle stops in color
+
+        // Display the popup container after the spin is completed
+        setTimeout(function () {
+          popupContainer.style.display = "block";
+        }, maxRotation + 6000); // Display popup exactly when spinning completes
+      }
+
+      document
+        .querySelector(".center-circle")
+        .addEventListener("click", function (e) {
+          if (!spinning) {
+            showPopup(); // Show popup only when the center circle is clicked and spinning animation is not in progress
+          }
+        });
+    </script>
+  </body>
+</html>
